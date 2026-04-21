@@ -1,307 +1,283 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Elite Card Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<title>Elite Card Tracker</title>
 
-  <style>
-    body {
-      font-family: Arial;
-      background: #111;
-      color: white;
-      padding: 20px;
-    }
+<style>
+body {
+  background: #0b0b0b;
+  color: white;
+  font-family: Arial;
+  text-align: center;
+}
 
-    h1, h2 { text-align: center; }
+input, select {
+  display: block;
+  margin: 10px auto;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  width: 250px;
+}
 
-    .tabs {
-      text-align: center;
-      margin-bottom: 10px;
-    }
+button {
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: none;
+  margin: 5px;
+}
 
-    .tabs button {
-      padding: 10px;
-      margin: 5px;
-      background: #333;
-      color: white;
-      border: none;
-    }
+.green { background: green; color: white; }
+.gray { background: #333; color: white; }
 
-    .active { background: green !important; }
+table {
+  width: 95%;
+  margin: 20px auto;
+  border-collapse: collapse;
+}
 
-    .sort-buttons {
-      text-align: center;
-      margin-bottom: 15px;
-    }
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #444;
+}
 
-    input, button {
-      padding: 8px;
-      margin: 5px;
-      border-radius: 5px;
-      border: none;
-    }
-
-    table {
-      width: 100%;
-      margin-top: 20px;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 8px;
-      border-bottom: 1px solid #444;
-      text-align: center;
-    }
-
-    .profit { color: lightgreen; }
-    .loss { color: red; }
-  </style>
+.player-card {
+  background: #111;
+  margin: 10px auto;
+  padding: 15px;
+  border-radius: 10px;
+  width: 80%;
+}
+</style>
 </head>
 
 <body>
 
 <h1>Elite Card Tracker</h1>
 
-<div class="tabs">
-  <button onclick="showTab('deals')" id="dealsTab" class="active">Deals</button>
-  <button onclick="showTab('players')" id="playersTab">Players</button>
-</div>
+<button class="green" onclick="showDeals()">Deals</button>
+<button class="gray" onclick="showPlayers()">Players</button>
 
-<div class="sort-buttons">
-  <button onclick="sortDeals('high')">Highest Profit</button>
-  <button onclick="sortDeals('low')">Lowest Profit</button>
-</div>
-
-<!-- DEALS SCREEN -->
+<!-- ================= DEALS SCREEN ================= -->
 <div id="dealsScreen">
 
-<div>
-  <input id="card" placeholder="Card / Player Name">
-  <input id="buy" type="number" placeholder="Buy $">
-  <input id="sell" type="number" placeholder="Sell $">
-  <input id="fees" type="number" placeholder="Fees $">
-  <input id="date" type="date">
-  <button onclick="addDeal()">Add / Update</button>
-</div>
+<button onclick="sortHigh()">Highest Profit</button>
+<button onclick="sortLow()">Lowest Profit</button>
+
+<select id="filterMethod" onchange="displayDeals()">
+  <option value="all">All Methods</option>
+  <option>Cash</option>
+  <option>Venmo</option>
+  <option>eBay</option>
+  <option>Topps</option>
+</select>
+
+<input id="name" placeholder="Card / Player Name">
+<input id="buy" placeholder="Buy $" type="number">
+<input id="sell" placeholder="Sell $" type="number">
+<input id="fees" placeholder="Fees $" type="number">
+<input id="date" type="date">
+
+<select id="method">
+  <option value="">Select Payment Method</option>
+  <option>Cash</option>
+  <option>Venmo</option>
+  <option>eBay</option>
+  <option>Topps</option>
+</select>
+
+<button onclick="addCard()">Add / Update</button>
 
 <h2>Sold Cards</h2>
+
 <table>
 <thead>
 <tr>
-<th>Card</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Edit</th><th>Delete</th>
+<th>Card</th>
+<th>Buy</th>
+<th>Sell</th>
+<th>Profit</th>
+<th>Date</th>
+<th>Method</th>
+<th>Edit</th>
+<th>Delete</th>
 </tr>
 </thead>
-<tbody id="soldBody"></tbody>
+<tbody id="soldTable"></tbody>
 </table>
 
 <h2>Inventory</h2>
+
 <table>
 <thead>
 <tr>
-<th>Card</th><th>Buy</th><th>Sell</th><th>Delete</th>
+<th>Card</th>
+<th>Buy</th>
+<th>Sell</th>
+<th>Date</th>
+<th>Method</th>
+<th>Delete</th>
 </tr>
 </thead>
-<tbody id="inventoryBody"></tbody>
+<tbody id="inventoryTable"></tbody>
 </table>
 
-<h2>Total Profit: $<span id="totalProfit">0</span></h2>
-
-<canvas id="chart"></canvas>
+<h2 id="totalProfit">Total Profit: $0</h2>
 
 </div>
 
-<!-- PLAYER SCREEN -->
+<!-- ================= PLAYERS SCREEN ================= -->
 <div id="playersScreen" style="display:none;">
-<h2>Player Breakdown</h2>
-<table>
-<thead>
-<tr>
-<th>Player</th>
-<th>Total Profit</th>
-<th># Deals</th>
-</tr>
-</thead>
-<tbody id="playerBody"></tbody>
-</table>
+  <h2>Players</h2>
+  <div id="playersContainer"></div>
 </div>
 
 <script>
-let deals = JSON.parse(localStorage.getItem("deals")) || [];
-let editIndex = -1;
-let chart;
+let sold = JSON.parse(localStorage.getItem("sold")) || [];
+let inventory = JSON.parse(localStorage.getItem("inventory")) || [];
 
-function save() {
-  localStorage.setItem("deals", JSON.stringify(deals));
+document.getElementById("date").valueAsDate = new Date();
+
+// SWITCH SCREENS
+function showDeals() {
+  document.getElementById("dealsScreen").style.display = "block";
+  document.getElementById("playersScreen").style.display = "none";
 }
 
-function showTab(tab) {
-  dealsScreen.style.display = tab === "deals" ? "block" : "none";
-  playersScreen.style.display = tab === "players" ? "block" : "none";
-
-  dealsTab.classList.toggle("active", tab === "deals");
-  playersTab.classList.toggle("active", tab === "players");
-
-  if (tab === "players") renderPlayers();
+function showPlayers() {
+  document.getElementById("dealsScreen").style.display = "none";
+  document.getElementById("playersScreen").style.display = "block";
+  displayPlayers();
 }
 
-function addDeal() {
-  let deal = {
-    card: card.value,
-    buy: +buy.value || 0,
-    sell: +sell.value || 0,
-    fees: +fees.value || 0,
-    date: date.value,
-    sold: sell.value ? true : false
-  };
+// ADD CARD
+function addCard() {
+  const name = document.getElementById("name").value;
+  const buy = parseFloat(document.getElementById("buy").value);
+  const sell = parseFloat(document.getElementById("sell").value);
+  const fees = parseFloat(document.getElementById("fees").value) || 0;
+  const date = document.getElementById("date").value;
+  const method = document.getElementById("method").value;
 
-  deal.profit = deal.sell - deal.buy - deal.fees;
-
-  if (editIndex === -1) deals.push(deal);
-  else {
-    deals[editIndex] = deal;
-    editIndex = -1;
+  if (!name || isNaN(buy)) {
+    alert("Fill required fields");
+    return;
   }
 
+  const profit = sell ? (sell - buy - fees) : 0;
+
+  const card = { name, buy, sell, fees, profit, date, method };
+
+  if (sell) sold.push(card);
+  else inventory.push(card);
+
+  localStorage.setItem("sold", JSON.stringify(sold));
+  localStorage.setItem("inventory", JSON.stringify(inventory));
+
   clearInputs();
-  save();
-  render();
+  displayDeals();
 }
 
-function editDeal(i) {
-  let d = deals[i];
-  card.value = d.card;
-  buy.value = d.buy;
-  sell.value = d.sell;
-  fees.value = d.fees;
-  date.value = d.date;
-  editIndex = i;
-}
+// DEALS DISPLAY
+function displayDeals() {
+  const soldTable = document.getElementById("soldTable");
+  const inventoryTable = document.getElementById("inventoryTable");
+  const filter = document.getElementById("filterMethod").value;
 
-function deleteDeal(i) {
-  deals.splice(i, 1);
-  save();
-  render();
-}
-
-function markSold(i) {
-  let price = prompt("Sell price?");
-  if (!price) return;
-
-  deals[i].sell = +price;
-  deals[i].sold = true;
-  deals[i].profit = deals[i].sell - deals[i].buy - deals[i].fees;
-
-  save();
-  render();
-}
-
-function clearInputs() {
-  card.value = buy.value = sell.value = fees.value = date.value = "";
-}
-
-function sortDeals(type) {
-  deals.sort((a, b) => {
-    return type === "high" ? b.profit - a.profit : a.profit - b.profit;
-  });
-  save();
-  render();
-}
-
-function render() {
-  soldBody.innerHTML = "";
-  inventoryBody.innerHTML = "";
+  soldTable.innerHTML = "";
+  inventoryTable.innerHTML = "";
 
   let total = 0;
-  let monthly = {};
 
-  deals.forEach((d,i) => {
+  sold
+    .map((c,i)=>({...c,index:i}))
+    .filter(c=>filter==="all"||c.method===filter)
+    .forEach(card=>{
+      total += card.profit;
 
-    if (d.sold) {
-      total += d.profit;
-
-      if (d.date) {
-        let m = d.date.slice(0,7);
-        monthly[m] = (monthly[m] || 0) + d.profit;
-      }
-
-      soldBody.innerHTML += `
-        <tr>
-          <td>${d.card}</td>
-          <td>$${d.buy}</td>
-          <td>$${d.sell}</td>
-          <td class="${d.profit>=0?'profit':'loss'}">$${d.profit.toFixed(2)}</td>
-          <td><button onclick="editDeal(${i})">Edit</button></td>
-          <td><button onclick="deleteDeal(${i})">X</button></td>
-        </tr>`;
-    } else {
-      inventoryBody.innerHTML += `
-        <tr>
-          <td>${d.card}</td>
-          <td>$${d.buy}</td>
-          <td><button onclick="markSold(${i})">Sell</button></td>
-          <td><button onclick="deleteDeal(${i})">X</button></td>
-        </tr>`;
-    }
-
-  });
-
-  totalProfit.innerText = total.toFixed(2);
-  drawChart(monthly);
-}
-
-function renderPlayers() {
-  playerBody.innerHTML = "";
-
-  let map = {};
-
-  deals.forEach(d => {
-    if (!map[d.card]) {
-      map[d.card] = { profit:0, count:0 };
-    }
-    map[d.card].profit += d.profit;
-    map[d.card].count++;
-  });
-
-  let arr = Object.entries(map);
-  arr.sort((a,b)=> b[1].profit - a[1].profit);
-
-  arr.forEach(([p,data])=>{
-    playerBody.innerHTML += `
+      soldTable.innerHTML += `
       <tr>
-        <td>${p}</td>
-        <td>$${data.profit.toFixed(2)}</td>
-        <td>${data.count}</td>
+        <td>${card.name}</td>
+        <td>$${card.buy}</td>
+        <td>$${card.sell}</td>
+        <td>$${card.profit}</td>
+        <td>${card.date||"-"}</td>
+        <td>${card.method||"-"}</td>
+        <td><button onclick="editCard(${card.index})">Edit</button></td>
+        <td><button onclick="deleteSold(${card.index})">Delete</button></td>
       </tr>`;
-  });
+    });
+
+  inventory
+    .map((c,i)=>({...c,index:i}))
+    .filter(c=>filter==="all"||c.method===filter)
+    .forEach(card=>{
+      inventoryTable.innerHTML += `
+      <tr>
+        <td>${card.name}</td>
+        <td>$${card.buy}</td>
+        <td>-</td>
+        <td>${card.date||"-"}</td>
+        <td>${card.method||"-"}</td>
+        <td><button onclick="deleteInventory(${card.index})">Delete</button></td>
+      </tr>`;
+    });
+
+  document.getElementById("totalProfit").innerText =
+    "Total Profit: $" + total.toFixed(2);
 }
 
-function drawChart(monthly) {
-  let labels = Object.keys(monthly);
-  let data = Object.values(monthly);
+// PLAYERS DISPLAY
+function displayPlayers() {
+  const container = document.getElementById("playersContainer");
+  container.innerHTML = "";
 
-  if (chart) chart.destroy();
+  const grouped = {};
 
-  chart = new Chart(document.getElementById("chart"), {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [{ label:"Profit", data }]
+  sold.forEach(card => {
+    const player = card.name.split(" ")[0];
+
+    if (!grouped[player]) {
+      grouped[player] = { profit: 0, count: 0 };
     }
+
+    grouped[player].profit += card.profit;
+    grouped[player].count++;
   });
+
+  Object.keys(grouped)
+    .sort((a,b)=>grouped[b].profit-grouped[a].profit)
+    .forEach(player=>{
+      container.innerHTML += `
+        <div class="player-card">
+          <h3>${player}</h3>
+          <p>Total Profit: $${grouped[player].profit.toFixed(2)}</p>
+          <p>Deals: ${grouped[player].count}</p>
+        </div>`;
+    });
 }
 
-// shortcuts
-const card = document.getElementById("card");
-const buy = document.getElementById("buy");
-const sell = document.getElementById("sell");
-const fees = document.getElementById("fees");
-const date = document.getElementById("date");
-const soldBody = document.getElementById("soldBody");
-const inventoryBody = document.getElementById("inventoryBody");
-const totalProfit = document.getElementById("totalProfit");
+// OTHER FUNCTIONS
+function deleteSold(i){ sold.splice(i,1); localStorage.setItem("sold",JSON.stringify(sold)); displayDeals(); }
+function deleteInventory(i){ inventory.splice(i,1); localStorage.setItem("inventory",JSON.stringify(inventory)); displayDeals(); }
 
-render();
+function editCard(i){
+  const c=sold[i];
+  name.value=c.name; buy.value=c.buy; sell.value=c.sell;
+  fees.value=c.fees; date.value=c.date; method.value=c.method;
+  deleteSold(i);
+}
+
+function sortHigh(){ sold.sort((a,b)=>b.profit-a.profit); displayDeals(); }
+function sortLow(){ sold.sort((a,b)=>a.profit-b.profit); displayDeals(); }
+
+function clearInputs(){
+  name.value=""; buy.value=""; sell.value=""; fees.value="";
+  date.valueAsDate=new Date(); method.value="";
+}
+
+displayDeals();
 </script>
 
 </body>
