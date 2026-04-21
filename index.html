@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Card Deal Tracker</title>
+  <title>Elite Card Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: Arial;
@@ -12,8 +13,26 @@
       padding: 20px;
     }
 
-    h1 {
+    h1, h2 { text-align: center; }
+
+    .tabs {
       text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .tabs button {
+      padding: 10px;
+      margin: 5px;
+      background: #333;
+      color: white;
+      border: none;
+    }
+
+    .active { background: green !important; }
+
+    .sort-buttons {
+      text-align: center;
+      margin-bottom: 15px;
     }
 
     input, button {
@@ -23,20 +42,6 @@
       border: none;
     }
 
-    input {
-      width: 120px;
-    }
-
-    button {
-      background: green;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: darkgreen;
-    }
-
     table {
       width: 100%;
       margin-top: 20px;
@@ -44,123 +49,259 @@
     }
 
     th, td {
-      padding: 10px;
+      padding: 8px;
       border-bottom: 1px solid #444;
       text-align: center;
     }
 
-    .profit {
-      color: lightgreen;
-    }
-
-    .loss {
-      color: red;
-    }
-
-    .totals {
-      margin-top: 20px;
-      font-size: 18px;
-    }
+    .profit { color: lightgreen; }
+    .loss { color: red; }
   </style>
 </head>
 
 <body>
 
-<h1>Sports Card Profit Tracker</h1>
+<h1>Elite Card Tracker</h1>
+
+<div class="tabs">
+  <button onclick="showTab('deals')" id="dealsTab" class="active">Deals</button>
+  <button onclick="showTab('players')" id="playersTab">Players</button>
+</div>
+
+<div class="sort-buttons">
+  <button onclick="sortDeals('high')">Highest Profit</button>
+  <button onclick="sortDeals('low')">Lowest Profit</button>
+</div>
+
+<!-- DEALS SCREEN -->
+<div id="dealsScreen">
 
 <div>
-  <input id="card" placeholder="Card Name">
+  <input id="card" placeholder="Card / Player Name">
   <input id="buy" type="number" placeholder="Buy $">
   <input id="sell" type="number" placeholder="Sell $">
   <input id="fees" type="number" placeholder="Fees $">
-  <button onclick="addDeal()">Add Deal</button>
+  <input id="date" type="date">
+  <button onclick="addDeal()">Add / Update</button>
 </div>
 
-<table id="table">
-  <thead>
-    <tr>
-      <th>Card</th>
-      <th>Buy</th>
-      <th>Sell</th>
-      <th>Fees</th>
-      <th>Profit</th>
-      <th>Delete</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
+<h2>Sold Cards</h2>
+<table>
+<thead>
+<tr>
+<th>Card</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Edit</th><th>Delete</th>
+</tr>
+</thead>
+<tbody id="soldBody"></tbody>
 </table>
 
-<div class="totals">
-  <p>Total Profit: $<span id="totalProfit">0</span></p>
+<h2>Inventory</h2>
+<table>
+<thead>
+<tr>
+<th>Card</th><th>Buy</th><th>Sell</th><th>Delete</th>
+</tr>
+</thead>
+<tbody id="inventoryBody"></tbody>
+</table>
+
+<h2>Total Profit: $<span id="totalProfit">0</span></h2>
+
+<canvas id="chart"></canvas>
+
 </div>
 
-<button onclick="exportCSV()">Export for Taxes</button>
+<!-- PLAYER SCREEN -->
+<div id="playersScreen" style="display:none;">
+<h2>Player Breakdown</h2>
+<table>
+<thead>
+<tr>
+<th>Player</th>
+<th>Total Profit</th>
+<th># Deals</th>
+</tr>
+</thead>
+<tbody id="playerBody"></tbody>
+</table>
+</div>
 
 <script>
-  let deals = JSON.parse(localStorage.getItem("deals")) || [];
+let deals = JSON.parse(localStorage.getItem("deals")) || [];
+let editIndex = -1;
+let chart;
 
-  function save() {
-    localStorage.setItem("deals", JSON.stringify(deals));
+function save() {
+  localStorage.setItem("deals", JSON.stringify(deals));
+}
+
+function showTab(tab) {
+  dealsScreen.style.display = tab === "deals" ? "block" : "none";
+  playersScreen.style.display = tab === "players" ? "block" : "none";
+
+  dealsTab.classList.toggle("active", tab === "deals");
+  playersTab.classList.toggle("active", tab === "players");
+
+  if (tab === "players") renderPlayers();
+}
+
+function addDeal() {
+  let deal = {
+    card: card.value,
+    buy: +buy.value || 0,
+    sell: +sell.value || 0,
+    fees: +fees.value || 0,
+    date: date.value,
+    sold: sell.value ? true : false
+  };
+
+  deal.profit = deal.sell - deal.buy - deal.fees;
+
+  if (editIndex === -1) deals.push(deal);
+  else {
+    deals[editIndex] = deal;
+    editIndex = -1;
   }
 
-  function addDeal() {
-    let card = document.getElementById("card").value;
-    let buy = parseFloat(document.getElementById("buy").value) || 0;
-    let sell = parseFloat(document.getElementById("sell").value) || 0;
-    let fees = parseFloat(document.getElementById("fees").value) || 0;
+  clearInputs();
+  save();
+  render();
+}
 
-    let profit = sell - buy - fees;
+function editDeal(i) {
+  let d = deals[i];
+  card.value = d.card;
+  buy.value = d.buy;
+  sell.value = d.sell;
+  fees.value = d.fees;
+  date.value = d.date;
+  editIndex = i;
+}
 
-    deals.push({ card, buy, sell, fees, profit });
-    save();
-    render();
-  }
+function deleteDeal(i) {
+  deals.splice(i, 1);
+  save();
+  render();
+}
 
-  function deleteDeal(index) {
-    deals.splice(index, 1);
-    save();
-    render();
-  }
+function markSold(i) {
+  let price = prompt("Sell price?");
+  if (!price) return;
 
-  function render() {
-    let tbody = document.querySelector("tbody");
-    tbody.innerHTML = "";
+  deals[i].sell = +price;
+  deals[i].sold = true;
+  deals[i].profit = deals[i].sell - deals[i].buy - deals[i].fees;
 
-    let total = 0;
+  save();
+  render();
+}
 
-    deals.forEach((d, i) => {
+function clearInputs() {
+  card.value = buy.value = sell.value = fees.value = date.value = "";
+}
+
+function sortDeals(type) {
+  deals.sort((a, b) => {
+    return type === "high" ? b.profit - a.profit : a.profit - b.profit;
+  });
+  save();
+  render();
+}
+
+function render() {
+  soldBody.innerHTML = "";
+  inventoryBody.innerHTML = "";
+
+  let total = 0;
+  let monthly = {};
+
+  deals.forEach((d,i) => {
+
+    if (d.sold) {
       total += d.profit;
 
-      tbody.innerHTML += `
+      if (d.date) {
+        let m = d.date.slice(0,7);
+        monthly[m] = (monthly[m] || 0) + d.profit;
+      }
+
+      soldBody.innerHTML += `
         <tr>
           <td>${d.card}</td>
           <td>$${d.buy}</td>
           <td>$${d.sell}</td>
-          <td>$${d.fees}</td>
-          <td class="${d.profit >= 0 ? 'profit' : 'loss'}">$${d.profit.toFixed(2)}</td>
+          <td class="${d.profit>=0?'profit':'loss'}">$${d.profit.toFixed(2)}</td>
+          <td><button onclick="editDeal(${i})">Edit</button></td>
           <td><button onclick="deleteDeal(${i})">X</button></td>
-        </tr>
-      `;
-    });
+        </tr>`;
+    } else {
+      inventoryBody.innerHTML += `
+        <tr>
+          <td>${d.card}</td>
+          <td>$${d.buy}</td>
+          <td><button onclick="markSold(${i})">Sell</button></td>
+          <td><button onclick="deleteDeal(${i})">X</button></td>
+        </tr>`;
+    }
 
-    document.getElementById("totalProfit").innerText = total.toFixed(2);
-  }
+  });
 
-  function exportCSV() {
-    let csv = "Card,Buy,Sell,Fees,Profit\n";
+  totalProfit.innerText = total.toFixed(2);
+  drawChart(monthly);
+}
 
-    deals.forEach(d => {
-      csv += `${d.card},${d.buy},${d.sell},${d.fees},${d.profit}\n`;
-    });
+function renderPlayers() {
+  playerBody.innerHTML = "";
 
-    let blob = new Blob([csv], { type: "text/csv" });
-    let link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "card_deals.csv";
-    link.click();
-  }
+  let map = {};
 
-  render();
+  deals.forEach(d => {
+    if (!map[d.card]) {
+      map[d.card] = { profit:0, count:0 };
+    }
+    map[d.card].profit += d.profit;
+    map[d.card].count++;
+  });
+
+  let arr = Object.entries(map);
+  arr.sort((a,b)=> b[1].profit - a[1].profit);
+
+  arr.forEach(([p,data])=>{
+    playerBody.innerHTML += `
+      <tr>
+        <td>${p}</td>
+        <td>$${data.profit.toFixed(2)}</td>
+        <td>${data.count}</td>
+      </tr>`;
+  });
+}
+
+function drawChart(monthly) {
+  let labels = Object.keys(monthly);
+  let data = Object.values(monthly);
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{ label:"Profit", data }]
+    }
+  });
+}
+
+// shortcuts
+const card = document.getElementById("card");
+const buy = document.getElementById("buy");
+const sell = document.getElementById("sell");
+const fees = document.getElementById("fees");
+const date = document.getElementById("date");
+const soldBody = document.getElementById("soldBody");
+const inventoryBody = document.getElementById("inventoryBody");
+const totalProfit = document.getElementById("totalProfit");
+
+render();
 </script>
 
 </body>
