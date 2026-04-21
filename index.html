@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Card Deal Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <style>
+    body {
+      font-family: Arial;
+      background: #111;
+      color: white;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    input, button {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    input {
+      width: 120px;
+    }
+
+    button {
+      background: green;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: darkgreen;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #444;
+      text-align: center;
+    }
+
+    .profit {
+      color: lightgreen;
+    }
+
+    .loss {
+      color: red;
+    }
+
+    .totals {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Sports Card Profit Tracker</h1>
+
+<div>
+  <input id="card" placeholder="Card Name">
+  <input id="buy" type="number" placeholder="Buy $">
+  <input id="sell" type="number" placeholder="Sell $">
+  <input id="fees" type="number" placeholder="Fees $">
+  <button onclick="addDeal()">Add Deal</button>
+</div>
+
+<table id="table">
+  <thead>
+    <tr>
+      <th>Card</th>
+      <th>Buy</th>
+      <th>Sell</th>
+      <th>Fees</th>
+      <th>Profit</th>
+      <th>Delete</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<div class="totals">
+  <p>Total Profit: $<span id="totalProfit">0</span></p>
+</div>
+
+<button onclick="exportCSV()">Export for Taxes</button>
+
+<script>
+  let deals = JSON.parse(localStorage.getItem("deals")) || [];
+
+  function save() {
+    localStorage.setItem("deals", JSON.stringify(deals));
+  }
+
+  function addDeal() {
+    let card = document.getElementById("card").value;
+    let buy = parseFloat(document.getElementById("buy").value) || 0;
+    let sell = parseFloat(document.getElementById("sell").value) || 0;
+    let fees = parseFloat(document.getElementById("fees").value) || 0;
+
+    let profit = sell - buy - fees;
+
+    deals.push({ card, buy, sell, fees, profit });
+    save();
+    render();
+  }
+
+  function deleteDeal(index) {
+    deals.splice(index, 1);
+    save();
+    render();
+  }
+
+  function render() {
+    let tbody = document.querySelector("tbody");
+    tbody.innerHTML = "";
+
+    let total = 0;
+
+    deals.forEach((d, i) => {
+      total += d.profit;
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${d.card}</td>
+          <td>$${d.buy}</td>
+          <td>$${d.sell}</td>
+          <td>$${d.fees}</td>
+          <td class="${d.profit >= 0 ? 'profit' : 'loss'}">$${d.profit.toFixed(2)}</td>
+          <td><button onclick="deleteDeal(${i})">X</button></td>
+        </tr>
+      `;
+    });
+
+    document.getElementById("totalProfit").innerText = total.toFixed(2);
+  }
+
+  function exportCSV() {
+    let csv = "Card,Buy,Sell,Fees,Profit\n";
+
+    deals.forEach(d => {
+      csv += `${d.card},${d.buy},${d.sell},${d.fees},${d.profit}\n`;
+    });
+
+    let blob = new Blob([csv], { type: "text/csv" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "card_deals.csv";
+    link.click();
+  }
+
+  render();
+</script>
+
+</body>
+</html>
